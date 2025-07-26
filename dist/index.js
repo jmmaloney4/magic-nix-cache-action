@@ -95964,31 +95964,60 @@ var MagicNixCacheAction = class extends DetSysAction {
     await this.tearDownAutoCache();
   }
   async setUpAutoCache() {
-    const requiredEnv = [
-      "ACTIONS_CACHE_URL",
-      "ACTIONS_RUNTIME_URL",
-      "ACTIONS_RUNTIME_TOKEN"
-    ];
-    let anyMissing = false;
-    for (const n of requiredEnv) {
-      if (!process.env.hasOwnProperty(n)) {
-        anyMissing = true;
-        core.warning(
-          `Disabling automatic caching since required environment ${n} isn't available`
-        );
+    const cacheService = inputs_exports.getString("cache-service");
+    const isBlacksmithRunner = process.env.RUNNER_NAME?.includes("blacksmith") || process.env.RUNNER_OS?.includes("blacksmith") || process.env.GITHUB_RUNNER_NAME?.includes("blacksmith");
+    const useBlacksmith = cacheService === "blacksmith" || cacheService === "auto" && isBlacksmithRunner;
+    if (useBlacksmith) {
+      core.info("Using Blacksmith cache service");
+      const blacksmithRequiredEnv = [
+        "BLACKSMITH_CACHE_URL",
+        "BLACKSMITH_RUNTIME_URL",
+        "BLACKSMITH_RUNTIME_TOKEN"
+      ];
+      let anyMissing = false;
+      for (const n of blacksmithRequiredEnv) {
+        if (!process.env.hasOwnProperty(n)) {
+          anyMissing = true;
+          core.warning(
+            `Disabling automatic caching since required Blacksmith environment ${n} isn't available`
+          );
+        }
       }
-    }
-    this.addFact(FACT_ENV_VARS_PRESENT, !anyMissing);
-    if (anyMissing) {
-      return;
+      this.addFact(FACT_ENV_VARS_PRESENT, !anyMissing);
+      if (anyMissing) {
+        return;
+      }
+      core.debug(
+        `Blacksmith Cache URL: ${process.env["BLACKSMITH_CACHE_URL"]}`
+      );
+    } else {
+      core.info("Using GitHub Actions cache service");
+      const requiredEnv = [
+        "ACTIONS_CACHE_URL",
+        "ACTIONS_RUNTIME_URL",
+        "ACTIONS_RUNTIME_TOKEN"
+      ];
+      let anyMissing = false;
+      for (const n of requiredEnv) {
+        if (!process.env.hasOwnProperty(n)) {
+          anyMissing = true;
+          core.warning(
+            `Disabling automatic caching since required environment ${n} isn't available`
+          );
+        }
+      }
+      this.addFact(FACT_ENV_VARS_PRESENT, !anyMissing);
+      if (anyMissing) {
+        return;
+      }
+      core.debug(
+        `GitHub Action Cache URL: ${process.env["ACTIONS_CACHE_URL"]}`
+      );
     }
     if (this.daemonStarted) {
       core.debug("Already started.");
       return;
     }
-    core.debug(
-      `GitHub Action Cache URL: ${process.env["ACTIONS_CACHE_URL"]}`
-    );
     const daemonBin = await this.unpackClosure("magic-nix-cache");
     const extraEnv = {
       GITHUB_CONTEXT: JSON.stringify(github.context)
@@ -96051,7 +96080,9 @@ var MagicNixCacheAction = class extends DetSysAction {
       "--use-gha-cache",
       useGhaCache,
       "--use-flakehub",
-      useFlakeHub
+      useFlakeHub,
+      "--cache-service",
+      useBlacksmith ? "blacksmith" : "github-actions"
     ].concat(this.diffStore ? ["--diff-store"] : []).concat(
       useFlakeHub !== "disabled" ? [
         "--flakehub-cache-server",

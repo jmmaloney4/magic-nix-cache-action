@@ -12,6 +12,13 @@ inputs:
       Set to "disabled" or false to explicitly disable the GitHub Actions Cache.
     default: null
     required: false
+  cache-service:
+    description: |
+      Which cache service to use. Set to "auto" to automatically detect based on runner type (default).
+      Set to "github-actions" to use GitHub Actions cache.
+      Set to "blacksmith" to use Blacksmith cache.
+    default: "auto"
+    required: false
   listen:
     description: The host and port to listen on.
     default: 127.0.0.1:37515
